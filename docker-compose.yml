@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: deployml
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./services/api
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/deployml
+      ARTIFACTS_DIR: /artifacts
+      # IMPORTANT: Compose network name is "<project>_default".
+      # We'll default the project name to "deployml".
+      DOCKER_NETWORK: deployml_default
+      MODEL_SERVER_IMAGE: deployml-model-server:latest
+      ARTIFACTS_VOLUME: deployml_artifacts
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - artifacts:/artifacts
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  gateway:
+    image: nginx:alpine
+    volumes:
+      - ./services/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  artifacts:
